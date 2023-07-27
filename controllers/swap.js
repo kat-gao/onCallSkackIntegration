@@ -1,4 +1,10 @@
 const axios = require("axios");
+const { getPagerDutyUserFromSlackUserId } = require("./user");
+const {
+  getSchedule,
+  parseDateIntoOptions,
+  parseSwapFormData,
+} = require("./utils");
 
 const scheduleId = process.env.SCHEDULE_ID;
 const pagerDutyToken = process.env.PAGER_DUTY_TOKEN;
@@ -6,16 +12,18 @@ const slackToken = process.env.SLACK_BOT_TOKEN;
 
 const blocks = require("../blocks.js");
 
-module.exports.swap = async ({ logger, body, command, ack, client }) => {
+module.exports.sendSwapForm = async ({
+  logger,
+  body,
+  command,
+  ack,
+  client,
+}) => {
   await ack();
 
-  const {
-    text: swappeeUserName,
-    user_id: swapperUserId,
-    channel_id: channel,
-  } = command;
   try {
-    const options = await getSchedule();
+    const schedule = await getSchedule();
+    const options = parseDateIntoOptions(schedule);
 
     const res = await client.views.open({
       trigger_id: command.trigger_id,
@@ -45,48 +53,61 @@ module.exports.swap = async ({ logger, body, command, ack, client }) => {
   }
 };
 
-const parseDateIntoOptions = (schedule) => {
-  const { final_schedule } = schedule.data.schedule;
-  const { rendered_schedule_entries } = final_schedule;
+module.exports.swapShifts = async ({ ack, body, view, client, logger }) => {
+  await ack();
 
-  // console.log("rendered_schedule_entries", rendered_schedule_entries);
-  const options = rendered_schedule_entries.map((entry) => {
-    const { start, end } = entry;
-    const startDateTime = new Date(start);
-    const endDateTime = new Date(end);
+  const { swappeeUser, swapperShift, swappeeShift } = parseSwapFormData(
+    view.state.values
+  );
+  const swapperUserId = await getPagerDutyUserFromSlackUserId(
+    client,
+    body.user.id
+  );
+  const swappeeUserId = await getPagerDutyUserFromSlackUserId(
+    client,
+    swappeeUser
+  );
 
-    return {
-      text: {
-        type: "plain_text",
-        text: `${startDateTime.toLocaleDateString()} - ${endDateTime.toLocaleDateString()}`,
-      },
-      value: `${startDateTime.toISOString()} - ${endDateTime.toISOString()}`,
-    };
-  });
-
-  return options;
-};
-
-const getSchedule = async () => {
-  const schedule = await axios.get(
-    `https://api.pagerduty.com/schedules/${scheduleId}`,
-    {
+  try {
+    var options = {
+      method: "POST",
+      url: `https://api.pagerduty.com/schedules/${scheduleId}/overrides`,
       headers: {
         "Content-Type": "application/json",
         Accept: "application/vnd.pagerduty+json;version=2",
         Authorization: `Token token=${pagerDutyToken}`,
       },
-      params: {
-        time_zone: "America/Chicago",
-        since: "2023-07-26",
-        until: "2023-09-26",
+      data: {
+        overrides: [
+          {
+            start: swappeeShift.split(" - ")[0],
+            end: swappeeShift.split(" - ")[1],
+            user: { id: swapperUserId, type: "user_reference" },
+            time_zone: "UTC",
+          },
+          {
+            start: swapperShift.split(" - ")[0],
+            end: swapperShift.split(" - ")[1],
+            user: { id: swappeeUserId, type: "user_reference" },
+            time_zone: "UTC",
+          },
+        ],
       },
-    }
-  );
+    };
 
-  const options = parseDateIntoOptions(schedule);
+    const res = await axios.request(options);
 
-  return options;
+    await client.chat.postMessage({
+      channel: body.user.id,
+      text: "Your shift has been swapped! :cars-yay-frog:",
+    });
+  } catch (error) {
+    await client.chat.postMessage({
+      channel: body.user.id,
+      text: "Something went wrong... :meow_eyespout: Please try again later!",
+    });
+    console.error(error);
+  }
 };
 
 // module.exports.updateView = async (user, body, client, logger) => {

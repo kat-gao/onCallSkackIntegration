@@ -1,7 +1,8 @@
 require("dotenv").config();
 const { App } = require("@slack/bolt");
-const { swap } = require("./controllers/swap");
+const { sendSwapForm, swapShifts } = require("./controllers/swap");
 const { help } = require("./controllers/help");
+const { getScheduleList } = require("./controllers/list");
 
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
@@ -10,18 +11,13 @@ const app = new App({
   appToken: process.env.SOCKET_TOKEN,
 });
 
-app.command("/swap", swap);
+app.command("/swap", sendSwapForm);
 
 app.command("/help", help);
 
-app.view("swap_form", async ({ ack, body, view, client, logger }) => {
-  await ack();
+app.command("/list", getScheduleList);
 
-  console.log("view", view.state.values);
-  console.log("body", body.user.name);
-
-  console.log("vieww is back");
-});
+app.view("swap_form", swapShifts);
 
 const startApp = async () => {
   await app.start(process.env.PORT || 3000);
