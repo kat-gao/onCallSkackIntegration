@@ -17,7 +17,14 @@ const formatDateToYYYYMMDD = (date) => {
   return formattedDate;
 };
 
-module.exports.formatDateToYYYYMMDD = formatDateToYYYYMMDD;
+const formatDateToMMDDYY = (date) => {
+  date = new Date(date);
+  const year = date.getFullYear().toString().slice(-2);
+  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  const day = date.getDate().toString().padStart(2, "0");
+  return `${month}-${day}-${year}`;
+};
+module.exports.formatDateToMMDDYY = formatDateToMMDDYY;
 
 module.exports.getSchedule = async () => {
   const today = new Date();
@@ -54,7 +61,9 @@ module.exports.parseDateIntoOptions = (schedule) => {
     return {
       text: {
         type: "plain_text",
-        text: `${startDateTime.toLocaleDateString()} - ${endDateTime.toLocaleDateString()}`,
+        text: `${formatDateToMMDDYY(startDateTime)} - ${formatDateToMMDDYY(
+          endDateTime
+        )}`,
       },
       value: `${startDateTime.toISOString()} - ${endDateTime.toISOString()}`,
     };

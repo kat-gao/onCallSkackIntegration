@@ -1,7 +1,7 @@
 require("dotenv").config();
 const { App } = require("@slack/bolt");
 const { sendSwapForm, swapShifts } = require("./controllers/swap");
-const { help } = require("./controllers/help");
+const { sendHelpInstructions } = require("./controllers/help");
 const { getScheduleList } = require("./controllers/list");
 
 const app = new App({
@@ -13,7 +13,7 @@ const app = new App({
 
 app.command("/swap", sendSwapForm);
 
-app.command("/help", help);
+app.command("/help", sendHelpInstructions);
 
 app.command("/list", getScheduleList);
 
